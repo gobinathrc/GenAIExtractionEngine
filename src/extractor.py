@@ -20,12 +20,12 @@ class GenAIExtractor:
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY is missing.")
             
-        # RENDER NETWORK FIX: Force the connection to use IPv4 instead of IPv6
-        custom_transport = httpx.HTTPTransport(local_address="0.0.0.0")
-        custom_client = httpx.Client(transport=custom_transport)
-        
-        # Pass the custom client into OpenAI
-        self.client = OpenAI(api_key=api_key, http_client=custom_client)
+        # FIX: The network is open, but Render is slow. 
+        # Extend the OpenAI timeout to 60 seconds to prevent Connection Errors.
+        self.client = OpenAI(
+            api_key=api_key,
+            timeout=60.0
+        )
         self.model = os.getenv("LLM_MODEL", "gpt-4o-mini")
         
     def retrieve_knowledge(self, user_text: str) -> str:
