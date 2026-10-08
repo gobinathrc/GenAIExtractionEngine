@@ -3,60 +3,60 @@ from fastapi.middleware.cors import CORSMiddleware
 from .models import ExtractionRequest, ExtractionResult
 from .extractor import GenAIExtractor
 
-app = FastAPI(title="GenAI Extraction Engine", version="1.0.0")
+app = FastAPI(title="GenAI Extraction Engine")
 
-# Change this block in src/main.py:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False, # <--- CHANGE THIS TO FALSE
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize the extractor
+# --- SLIDING WINDOW MEMORY ---
+# Empty list to store the last 5 conversations (10 messages total)
+conversation_history = []
+
+extractor = None
 try:
     extractor = GenAIExtractor()
-except RuntimeError as e:
-    print(f"Startup Warning: {e}")
-    extractor = None
-
-# ... (Keep your existing @app.post and @app.get routes below this) ...
+except Exception as e:
+    print(f"Error initializing extractor: {e}")
 
 @app.post("/api/v1/extract", response_model=ExtractionResult)
 async def perform_extraction(request: ExtractionRequest):
-    """Endpoint to process unstructured text and return structured data."""
+    global conversation_history
+    
     if not extractor:
         raise HTTPException(status_code=500, detail="Extractor not initialized. Check API keys.")
         
     try:
-        return extractor.extract(text=request.text, context=request.context)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # 1. Format the memory history into a readable string
+        history_text = ""
+        if conversation_history:
+            history_text = "--- PREVIOUS CONVERSATION HISTORY ---\n"
+            for msg in conversation_history:
+                history_text += f"{msg['role'].capitalize()}: {msg['content']}\n"
+            history_text += "-------------------------------------\n"
+
+        # 2. Combine the memory with the user's current context
+        combined_context = f"{history_text}\nAdditional Request Context: {request.context}"
+        
+        # 3. Run the extraction
+        result = extractor.extract(request.text, context=combined_context)
+        
+        # 4. Save this new interaction to the memory list
+        conversation_history.append({"role": "user", "content": request.text})
+        conversation_history.append({"role": "assistant", "content": result.summary})
+        
+        # 5. Enforce the sliding window (Keep only the last 10 items / 5 pairs)
+        conversation_history = conversation_history[-10:]
+        
+        return result
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Backend Error: {str(e)}")
 
 @app.get("/health")
 async def health_check():
-    """Simple health check endpoint."""
-    return {"status": "healthy", "extractor_loaded": extractor is not None}
-import httpx
-
-@app.get("/api/v1/diagnose-network")
-async def diagnose_network():
-    """Diagnostic tool to test if Render's network is blocking OpenAI."""
-    try:
-        # Try to ping OpenAI directly bypassing the SDK
-        with httpx.Client(timeout=10.0) as client:
-            response = client.get("https://api.openai.com/v1/")
-            return {
-                "network_status": "Connected to OpenAI successfully!", 
-                "http_status_code": response.status_code,
-                "response_text": response.text
-            }
-    except Exception as e:
-        return {
-            "network_status": "FAILED - Network Blocked", 
-            "error_message": str(e),
-            "error_type": str(type(e))
-        }
+    return {"status": "healthy"}
