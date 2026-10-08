@@ -5,11 +5,11 @@ from .extractor import GenAIExtractor
 
 app = FastAPI(title="GenAI Extraction Engine", version="1.0.0")
 
-# Add CORS Middleware to allow frontend communication
+# Change this block in src/main.py:
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to your frontend URL
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False, # <--- CHANGE THIS TO FALSE
     allow_methods=["*"],
     allow_headers=["*"],
 )
