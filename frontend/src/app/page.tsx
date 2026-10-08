@@ -16,7 +16,7 @@ export default function Home() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const response = await fetch(`${API_URL}/api/v1/extract`, {
+      const response = await fetch(`${API_URL}/api/v1/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -24,10 +24,19 @@ const response = await fetch(`${API_URL}/api/v1/extract`, {
           context: "Extract entities for database filtering.",
         }),
       });
+      
       const data = await response.json();
+      
+      // SAFETY CHECK: Handle backend errors gracefully so the page doesn't crash
+      if (!response.ok || !data.entities) {
+        alert("Backend Error: " + (data.detail || "Unable to extract data. Please check OpenAI API keys on Render."));
+        return;
+      }
+      
       setResult(data);
     } catch (error) {
       console.error("Extraction failed:", error);
+      alert("Network Error: Could not connect to the backend. Please check if your backend URL is correct.");
     } finally {
       setLoading(false);
     }
@@ -67,7 +76,7 @@ const response = await fetch(`${API_URL}/api/v1/extract`, {
         </div>
 
         {/* Results Section */}
-        {result && (
+        {result && result.entities && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
