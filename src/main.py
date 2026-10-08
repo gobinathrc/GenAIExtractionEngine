@@ -40,3 +40,23 @@ async def perform_extraction(request: ExtractionRequest):
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy", "extractor_loaded": extractor is not None}
+import httpx
+
+@app.get("/api/v1/diagnose-network")
+async def diagnose_network():
+    """Diagnostic tool to test if Render's network is blocking OpenAI."""
+    try:
+        # Try to ping OpenAI directly bypassing the SDK
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get("https://api.openai.com/v1/")
+            return {
+                "network_status": "Connected to OpenAI successfully!", 
+                "http_status_code": response.status_code,
+                "response_text": response.text
+            }
+    except Exception as e:
+        return {
+            "network_status": "FAILED - Network Blocked", 
+            "error_message": str(e),
+            "error_type": str(type(e))
+        }
